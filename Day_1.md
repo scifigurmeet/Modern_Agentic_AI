@@ -234,10 +234,174 @@ df.head()
 > [!TIP]
 > `df` is just a variable name (short for *DataFrame*). `df.head()` shows the top few rows so you can eyeball what you're working with. In Colab, the table renders as a neat, scrollable grid right under the cell. Always look at your data before doing anything else.
 
-### 1.3 Understanding the Data Before Touching a Model (20 min)
+### 1.3 What Is This Data, Really? Making Sense of It (25 min)
+
+Before we touch any code or model, let's slow down and genuinely *understand* what we're looking at. **A model can only be as smart as your understanding of the data.** If you don't know what the columns mean or why churn happens, you can't tell whether the model is being clever or being fooled.
+
+#### 📖 The story behind the dataset
+
+This is a real, well-known dataset originally published by **IBM** as a teaching sample. It describes a (fictional but realistic) telecom company in the United States that sells **home phone and internet services** to about **7,043 customers**. For each customer, the company recorded everything it knew about them — who they are, what services they bought, how they pay, how long they've stayed — and crucially, **whether they left the company ("churned") last month.**
 
 > [!IMPORTANT]
-> **The golden rule:** Never build a model before you understand your data. Most failures in machine learning are actually *data* problems in disguise.
+> **What "churn" means and why the company cares.** Churn = a customer cancelled and left. In the telecom business this is the single most expensive problem there is. Winning a *new* customer costs far more (advertising, discounts, setup) than keeping an existing one. So if the company could spot *who is about to leave* a month in advance, it could phone them, offer a better deal, and save the revenue. **That is the entire business purpose of this dataset, and of the model we build today.**
+
+#### 🧩 What each column means (in plain business language)
+
+The 21 columns aren't random — they fall into **four natural groups**, each answering a different question about the customer. Understanding these groups is how you go from "a wall of columns" to "a customer I can picture."
+
+```mermaid
+flowchart TD
+    C(("👤 One<br/>Customer"))
+    C --> G1["👥 WHO they are<br/>(demographics)"]
+    C --> G2["📦 WHAT they bought<br/>(services)"]
+    C --> G3["💳 HOW they pay & commit<br/>(account)"]
+    C --> G4["🎯 Did they LEAVE?<br/>(the target)"]
+    style C fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    style G1 fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    style G2 fill:#cffafe,stroke:#0891b2,color:#155e75
+    style G3 fill:#fef3c7,stroke:#d97706,color:#78350f
+    style G4 fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+```
+
+**👥 Group 1 — Who the customer is (demographics)**
+
+| Column | What it means | Why it might predict churn |
+|---|---|---|
+| `gender` | Male or Female | Usually has little effect — we'll verify, not assume |
+| `SeniorCitizen` | Is the customer 65+? (1 = yes, 0 = no) | Older customers may behave differently online |
+| `Partner` | Do they have a spouse/partner? | Family customers tend to be more "sticky" (stay longer) |
+| `Dependents` | Do they have children/dependents? | Households with kids switch providers less often |
+
+**📦 Group 2 — What services they bought**
+
+| Column | What it means | Why it might predict churn |
+|---|---|---|
+| `PhoneService` | Has home phone service | Basic service; baseline relationship |
+| `MultipleLines` | Has more than one phone line | More services = more invested in staying |
+| `InternetService` | Type of internet: DSL, Fiber optic, or None | **Big one** — fiber is fast but pricier; fiber users churn more |
+| `OnlineSecurity` | Has the security add-on | Add-ons make leaving more of a hassle (stickier) |
+| `OnlineBackup` | Has the backup add-on | Same — every add-on is a small anchor |
+| `DeviceProtection` | Has device protection | Same |
+| `TechSupport` | Has premium tech support | Customers with support feel looked-after → stay |
+| `StreamingTV` | Streams TV through them | More usage, more entanglement |
+| `StreamingMovies` | Streams movies through them | Same |
+
+**💳 Group 3 — How they pay and commit (account info)**
+
+| Column | What it means | Why it might predict churn |
+|---|---|---|
+| `tenure` | **How many months they've been a customer** | **The strongest signal.** New customers leave; long-time customers rarely do |
+| `Contract` | Month-to-month, One year, or Two year | **Huge.** Month-to-month customers can leave anytime; contract customers are locked in |
+| `PaperlessBilling` | Uses paperless billing | Slightly correlated with the type of customer who shops around |
+| `PaymentMethod` | How they pay (electronic check, mailed check, bank transfer, credit card) | **Electronic-check payers churn a lot more** — often less committed customers |
+| `MonthlyCharges` | What they pay per month (₹/$ amount) | Higher bills → more reason to look for a cheaper deal |
+| `TotalCharges` | What they've paid in total over their whole time | Roughly tenure × monthly charges; reflects overall relationship value |
+
+**🎯 Group 4 — The answer we're predicting (the target)**
+
+| Column | What it means |
+|---|---|
+| `Churn` | **Did this customer leave last month?** Yes or No. This is what the model learns to predict. |
+
+> [!NOTE]
+> **The `customerID` column.** There's one more column — a unique code like `7590-VHVEG` for each customer. It carries *no pattern* (it's just an ID, like an Aadhaar number), so we'll throw it away before modeling. Keeping it could even fool the model into "memorising" individuals instead of learning real patterns.
+
+#### 🔎 Forming hypotheses *before* we look
+
+Good data work means making **guesses first, then checking them.** Based on the business logic above, here's what we *expect* to see. Write these down — we'll test them in a moment:
+
+> [!TIP]
+> **Our hypotheses (educated guesses):**
+> 1. 🔴 **New customers churn more.** Someone in month 1 hasn't bonded with the company yet.
+> 2. 🔴 **Month-to-month contracts churn far more** than 1- or 2-year contracts (no lock-in).
+> 3. 🔴 **Fiber-optic internet customers churn more** (they pay more and have higher expectations).
+> 4. 🟢 **Customers with add-ons** (security, tech support) **churn less** (more tangled in, more cared for).
+> 5. ⚪ **Gender probably doesn't matter** much.
+
+#### 👀 Now let's actually look — does the data agree?
+
+Let's check our hypotheses with simple summaries. **This is the heart of "making sense" of data** — not running a model, but seeing the patterns with our own eyes.
+
+```python
+# HYPOTHESIS 2: Do month-to-month customers churn more?
+# Group by contract type and show the % who churned in each group.
+churn_by_contract = df.groupby("Contract")["Churn"].apply(
+    lambda x: (x == "Yes").mean() * 100
+).round(1)
+print("Churn rate by contract type (%):")
+print(churn_by_contract)
+# Expected: Month-to-month ~43%, One year ~11%, Two year ~3%
+```
+
+> [!IMPORTANT]
+> **Read this result slowly — it's the most important insight in the whole dataset.** Month-to-month customers leave at roughly **43%**, while two-year-contract customers leave at about **3%**. That's a *14× difference*! This single column tells you most of the churn story: **lock-in keeps customers.** When you see the model later lean heavily on `Contract`, you'll understand *why* — you saw it here first, with your own eyes.
+
+```python
+# HYPOTHESIS 1: Do newer customers churn more?
+# Compare the average tenure (months as a customer) of leavers vs stayers.
+print("Average months as a customer:")
+print(df.groupby("Churn")["tenure"].mean().round(1))
+# Expected: customers who churned have MUCH lower average tenure
+```
+
+> [!NOTE]
+> You'll see that customers who left had been around for ~18 months on average, while those who stayed averaged ~38 months. **The longer someone stays, the less likely they are to leave** — loyalty compounds. This is why `tenure` will be one of the model's favourite columns.
+
+```python
+# HYPOTHESIS 3: Do fiber-optic internet customers churn more?
+churn_by_internet = df.groupby("InternetService")["Churn"].apply(
+    lambda x: (x == "Yes").mean() * 100
+).round(1)
+print("Churn rate by internet type (%):")
+print(churn_by_internet)
+# Expected: Fiber optic churns highest, "No internet" churns lowest
+```
+
+```python
+# HYPOTHESIS 5: Does gender actually matter?
+churn_by_gender = df.groupby("gender")["Churn"].apply(
+    lambda x: (x == "Yes").mean() * 100
+).round(1)
+print("Churn rate by gender (%):")
+print(churn_by_gender)
+# Expected: almost identical for Male and Female — gender barely matters
+```
+
+> [!IMPORTANT]
+> **Why this exercise matters more than the model.** Notice what just happened: *before any machine learning*, you already understand the customer. You know a worried customer looks like — **new, on a month-to-month plan, paying by electronic check for expensive fiber internet, with no add-ons.** A model that later flags exactly this kind of person is *trustworthy*, because it matches what you discovered by hand. A model that instead flagged, say, "Female customers" would be suspicious — because you checked, and gender doesn't matter. **This is how you tell a smart model from a fooled one: by understanding the data first.**
+
+#### 🖼️ See it in one picture
+
+A chart makes the patterns instant. This shows churn rate across the most important columns.
+
+```python
+import matplotlib.pyplot as plt
+
+# Pick the columns we found most interesting
+cols_to_plot = ["Contract", "InternetService", "PaymentMethod", "gender"]
+
+fig, axes = plt.subplots(2, 2, figsize=(13, 9))
+for ax, col in zip(axes.flatten(), cols_to_plot):
+    rates = df.groupby(col)["Churn"].apply(lambda x: (x == "Yes").mean() * 100)
+    rates.sort_values().plot(kind="barh", ax=ax, color="#1d4ed8")
+    ax.set_title(f"Churn rate by {col}", fontweight="bold")
+    ax.set_xlabel("% who churned")
+
+plt.tight_layout()
+plt.show()
+```
+
+> [!TIP]
+> **What the picture tells you at a glance:** the longest bars (most churn) cluster around *month-to-month contracts, fiber-optic internet, and electronic-check payment* — exactly our high-risk profile. The gender bars are nearly equal, confirming it barely matters. **You can now explain churn to a non-technical manager in one sentence, using nothing but this chart.** That is what "making sense of data" means.
+
+---
+
+### 1.4 Inspecting the Data Technically (15 min)
+
+Now that we *understand* the data as a business story, let's inspect it technically and find the hidden defects we'll need to fix.
+
+> [!IMPORTANT]
+> **The golden rule:** Never build a model before you understand your data. Most failures in machine learning are actually *data* problems in disguise. We just did the *business* understanding above; now we do the *technical* check.
 
 ```python
 # 1. What columns exist, and what type is each?
@@ -280,7 +444,7 @@ df["TotalCharges"] = df["TotalCharges"].fillna(0)
 > [!TIP]
 > **What is "NaN"?** It stands for *Not a Number* — Python's way of marking a missing or empty value. Real datasets are full of them, and handling them is a core skill.
 
-### 1.4 Splitting Inputs from the Answer (5 min)
+### 1.5 Splitting Inputs from the Answer (5 min)
 
 The model needs two things: the **inputs** (features) and the **correct answers** (target) to learn from.
 
@@ -311,7 +475,7 @@ print("Numbers:", numeric_features)
 print("Categories:", categorical_features)
 ```
 
-### 1.5 The Most Important Idea of the Day: Splitting the Data (15 min)
+### 1.6 The Most Important Idea of the Day: Splitting the Data (15 min)
 
 > [!IMPORTANT]
 > **Why we split data into "train" and "test".**
@@ -347,7 +511,7 @@ flowchart LR
 > [!WARNING]
 > **The classic beginner mistake (called "data leakage").** If you clean or scale your data using the *whole* dataset before splitting, secret test information sneaks into training. Your scores look amazing in practice but collapse in the real world. **Rule: split first, then prepare.** Always.
 
-### 1.6 The Pipeline — Packaging All Preparation Into One Object (35 min)
+### 1.7 The Pipeline — Packaging All Preparation Into One Object (35 min)
 
 Real data needs cleaning before a model can use it: fill in missing values, convert text categories into numbers, and put numbers on a common scale. Doing this by hand every time is error-prone. Instead we build a **Pipeline** — a single object that remembers all these steps and applies them automatically.
 
@@ -413,7 +577,7 @@ flowchart TD
 >
 > **Why does `handle_unknown="ignore"` matter?** In the real world, a new customer might have a category the model never saw in training. Without this setting, the program would crash. With it, the model handles the surprise gracefully. This one small choice prevents real production failures.
 
-### 1.7 Grading the Model Honestly (25 min)
+### 1.8 Grading the Model Honestly (25 min)
 
 A single test score can be lucky. **Cross-validation** is a fairer test: it splits the training data into 5 parts, trains on 4 and tests on the 5th, then rotates — giving 5 scores instead of 1.
 
@@ -445,12 +609,13 @@ flowchart LR
 > [!IMPORTANT]
 > **How to read the result.** A score like `0.804 +/- 0.012` means: on average 80.4% correct, and the score barely wobbles between folds (±1.2%) — that's a *stable, trustworthy* model. If instead you saw `0.804 +/- 0.090`, the model is jumpy and unreliable. Always read the variation, not just the average. And remember: anything above our **0.73 baseline** means the model genuinely learned something.
 
-### 1.8 🧪 Try It Yourself (15 min)
+### 1.9 🧪 Try It Yourself (15 min)
 
-> 1. Run the download cell and load the dataset; fix the `TotalCharges` problem yourself.
-> 2. Build the full pipeline by typing it out (don't copy-paste — typing builds memory).
-> 3. Print your average accuracy and compare it to the 73% baseline. Did you beat it?
-> 4. **Bonus:** Change `strategy="median"` to `strategy="mean"` in the numeric steps. Does the score change much? (It shouldn't — and noticing that is itself a useful insight.)
+> 1. **Explore one column we didn't chart.** Pick `PaymentMethod` or `TechSupport` and compute its churn rate (copy the `groupby` pattern from Section 1.3). Does the result match the business logic in the column tables?
+> 2. Run the download cell and load the dataset; fix the `TotalCharges` problem yourself.
+> 3. Build the full pipeline by typing it out (don't copy-paste — typing builds memory).
+> 4. Print your average accuracy and compare it to the 73% baseline. Did you beat it?
+> 5. **Bonus:** Change `strategy="median"` to `strategy="mean"` in the numeric steps. Does the score change much? (It shouldn't — and noticing that is itself a useful insight.)
 
 ✅ **Session 1 done:** You have a trained model that prepares messy data automatically and beats the lazy 73% baseline.
 
@@ -870,6 +1035,9 @@ Tick each box before you finish:
 
 - [ ] I opened a Colab notebook and ran my first cell
 - [ ] I downloaded the Telco Churn dataset into Colab
+- [ ] I can explain in one sentence what this dataset is about and why the company cares about churn
+- [ ] I know what the four column groups are (who they are, what they bought, how they pay, did they leave)
+- [ ] I can describe a high-risk customer without using a model (new, month-to-month, fiber, electronic check, no add-ons)
 - [ ] I understand what a model, a feature, and a target are
 - [ ] I fixed the `TotalCharges` problem and understood why it happened
 - [ ] I can explain the 73% baseline and why it's my honesty anchor

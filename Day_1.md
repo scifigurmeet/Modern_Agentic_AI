@@ -497,6 +497,18 @@ X_train, X_test, y_train, y_test = train_test_split(
 print(f"Training on {X_train.shape[0]} customers, testing on {X_test.shape[0]}")
 ```
 
+> [!NOTE]
+> **Let's decode every setting in that command — these appear everywhere in machine learning, so understanding them now pays off all programme:**
+>
+> **`test_size=0.20`** — "keep 20% for testing." It's a fraction: `0.20` means 20%. If you wrote `0.30`, you'd hide 30% and train on 70%. Why 20%? It's a common balance — enough hidden data to grade fairly, but not so much that the model has too little to learn from.
+>
+> **`random_state=42`** — this one confuses every beginner, so here's the full story. To split the data, the computer needs to *shuffle* the customers and then cut off the first 80%. Shuffling uses **random numbers**. But "random" on a computer isn't truly random — it follows a recipe that starts from a **seed number**. If you give it the same seed, you get the *exact same shuffle every time.*
+>   - `random_state=42` fixes the seed to 42, so **you and your neighbour both get the identical split** — making results comparable and reproducible.
+>   - Without it, every run would shuffle differently and your accuracy would wobble each time, making it impossible to tell whether a change you made actually helped.
+>   - **Why 42 specifically?** No special reason — it's a famous programmer's in-joke (from *The Hitchhiker's Guide to the Galaxy*, where 42 is "the answer to everything"). You could use `random_state=7` or `random_state=100`; the rule is just *pick one number and keep using it.*
+>
+> **`stratify=y`** — "keep the same Yes/No mix in both halves." Remember our data is 73% stayed / 27% churned. Without this, a random split might accidentally put most of the churners in the test set, leaving the training set lopsided. `stratify=y` forces *both* the training and test sets to keep that same 73/27 ratio, so each is a fair miniature of the whole.
+
 ```mermaid
 flowchart LR
     D["🗃️ All Data<br/>7043 customers"] --> S{{"Split<br/>80% / 20%"}}
@@ -557,7 +569,108 @@ model.fit(X_train, y_train)
 print("Model trained!")
 ```
 
-Here's how data flows through the pipeline:
+> [!IMPORTANT]
+> **That was a lot of new tools at once. Let's slow right down and understand each one with a tiny example — because these five tools are the building blocks of almost all machine learning.** Don't move on until each makes sense.
+
+#### 🔧 Tool 1: `SimpleImputer` — fills in the blanks
+
+**The problem it solves:** real data has holes (missing values). A model can't do maths on a blank. `SimpleImputer` fills each blank with a sensible substitute.
+
+Imagine a tiny column of monthly charges where one value is missing:
+
+```
+Before:   [50,  70,  missing,  90,  60]
+```
+
+`SimpleImputer(strategy="median")` looks at all the *known* values, finds the **median** (the middle value when sorted: 50, 60, 70, 90 → middle is ~65), and fills the gap with it:
+
+```
+After:    [50,  70,    65,     90,  60]
+```
+
+> [!NOTE]
+> **What does `strategy="median"` mean, and why median?**
+> - **`strategy`** tells the imputer *what to fill blanks with.* Options include `"mean"` (average), `"median"` (middle value), and `"most_frequent"` (the most common value).
+> - **Why `median` for numbers?** The median is *robust* — it isn't thrown off by extreme values. If one customer paid ₹50,00,000 by mistake, the *average* would shoot up and give a silly fill value. The *median* (middle) barely moves, so it stays sensible.
+> - **Why `most_frequent` for text?** You can't average words like "DSL" and "Fiber optic." So for text columns we fill blanks with whichever category appears most often — the safest guess.
+
+#### 🔧 Tool 2: `StandardScaler` — puts numbers on a level playing field
+
+**The problem it solves:** our columns are on wildly different scales. `tenure` runs from 0 to ~72 (months), but `TotalCharges` runs from 0 to ~8,700 (rupees). To a model, the *bigger numbers can look more important just because they're bigger* — which is unfair. `StandardScaler` rescales every number column so they're all comparable.
+
+It does this by converting each value into "how many steps above or below the average it is." After scaling, every column is centred around 0:
+
+```
+tenure before:   [1,   34,   2,   45,   8]      (small numbers)
+charges before:  [29,  1889, 108, 1840, 820]    (big numbers)
+
+After scaling, BOTH become comparable:
+tenure after:    [-1.2,  0.5, -1.1,  0.9, -0.7]
+charges after:   [-1.0,  0.8, -0.9,  0.8, -0.1]
+```
+
+> [!NOTE]
+> **Why this matters.** Now the model judges each column on its *pattern*, not its raw size. A change in `tenure` and a change in `TotalCharges` carry equal weight until the model decides otherwise. Some models (like Logistic Regression) genuinely need this to work well; others (like Random Forest) don't care — but scaling never hurts, so we do it for everyone.
+
+#### 🔧 Tool 3: `OneHotEncoder` — turns words into numbers
+
+**The problem it solves:** models do maths, and maths needs numbers — but `Contract` contains words like "Month-to-month." `OneHotEncoder` converts each category into a set of yes/no (1/0) columns.
+
+Take the `Contract` column with three possible values:
+
+```
+Before (one text column):
+  Contract
+  -----------------
+  Month-to-month
+  Two year
+  One year
+```
+
+It becomes **three number columns**, one per category, where `1` means "yes, this one" and `0` means "no":
+
+```
+After (three number columns):
+  Month-to-month   One year   Two year
+  --------------   --------   --------
+       1              0          0        <- this customer is month-to-month
+       0              0          1        <- this customer is two-year
+       0              1          0        <- this customer is one-year
+```
+
+> [!NOTE]
+> **Why "one-hot"?** The name comes from electronics: out of all the new columns, exactly *one* is "hot" (set to 1) for each row, the rest are 0. It's just a vivid way of saying "tick exactly one box."
+>
+> **Why not just number them 1, 2, 3?** Tempting, but wrong! If we labelled Month-to-month=1, One year=2, Two year=3, the model would think Two year is "3× more" than Month-to-month, or that One year is "between" them — which is meaningless for categories. One-hot encoding avoids inventing fake order. (This is one of the most common beginner mistakes, now you'll never make it.)
+>
+> **`handle_unknown="ignore"`** — covered earlier: if a brand-new category shows up in real life that the model never trained on, this tells the encoder to quietly set all boxes to 0 instead of crashing.
+
+#### 🔧 Tool 4: `Pipeline` and `ColumnTransformer` — the assembly line
+
+**`Pipeline`** chains steps so they run in order, automatically. `Pipeline([("fill", SimpleImputer(...)), ("scale", StandardScaler())])` means: *"first fill the blanks, then scale — every time, no forgetting."* The `("name", tool)` pairs are just labels so you can refer to each step later; the names ("fill", "scale") are yours to choose.
+
+**`ColumnTransformer`** applies *different* pipelines to *different* columns — because numbers and text need different treatment. We tell it: send number columns through the number recipe, send text columns through the text recipe, then glue the results back together. (You saw this in the diagram above.)
+
+#### 🔧 Tool 5: `LogisticRegression` — the actual learning algorithm
+
+This is the part that *learns the pattern* and makes the prediction. Let's decode its two settings:
+
+```python
+LogisticRegression(max_iter=1000, random_state=42)
+```
+
+> [!NOTE]
+> **`max_iter=1000`** — "try up to 1000 times to find the best answer."
+> Logistic Regression learns by *gradually improving* its guess, step by step, like adjusting a recipe by taste until it's right. Each adjustment is one **iteration**. `max_iter` is the maximum number of adjustment steps allowed before it stops.
+>   - The default is only 100, which is sometimes *too few* — the model stops before it has fully settled, and you get a warning like *"failed to converge."* Setting `max_iter=1000` gives it plenty of room to finish.
+>   - Think of it as "I'll let you keep refining your answer up to 1000 times; if you settle sooner, great, stop early."
+>
+> **`random_state=42`** — same idea as before. Parts of the learning involve a little randomness, so fixing the seed to 42 means *you get the exact same model every run.* Reproducibility again.
+
+> [!TIP]
+> **The pattern you'll see all programme:** almost every tool in scikit-learn takes settings like these in its brackets. They're called **hyperparameters** — knobs *you* set before training (as opposed to the patterns the model *learns* by itself). You don't need to memorise them; you need to know they exist and roughly what they do. When in doubt, the defaults are usually fine — we only override them when there's a reason (like `max_iter` needing more room).
+
+Now that you understand each tool, here's how a customer's data flows through the whole pipeline — every step we just explained, in order:
 
 ```mermaid
 flowchart TD
@@ -590,6 +703,12 @@ print(f"Average accuracy: {scores.mean():.3f}")
 print(f"Variation (+/-):  {scores.std():.3f}")
 print(f"Baseline to beat: 0.730")
 ```
+
+> [!NOTE]
+> **Decoding the settings:**
+> - **`cv=5`** — "cut the training data into **5** parts (folds)." The model is trained and tested 5 times, each time holding out a different fifth. Why 5? It's the standard choice — enough rounds to be reliable, few enough to run quickly. You could use `cv=10` for a more thorough check at the cost of speed.
+> - **`scoring="accuracy"`** — "grade each round on **accuracy**" (the % it got right). Later you could ask for other grades like `"recall"` (catch-rate of leavers) instead — remember from earlier that accuracy isn't always the best grade for imbalanced data.
+> - **`scores.mean()`** averages the 5 results; **`scores.std()`** measures how much they wobbled (the `±`). `.3f` just means "show 3 decimal places."
 
 ```mermaid
 flowchart LR
@@ -681,7 +800,12 @@ for name, algorithm in candidates.items():
     print(f"{name:<22} {scores.mean():.3f} +/- {scores.std():.3f}")
 ```
 
-You'll see something like:
+> [!NOTE]
+> **One new setting here: `n_estimators=200`.** Remember a Random Forest works by asking many yes/no question-trees and taking a majority vote. `n_estimators=200` means *"build 200 trees and let them vote."* More trees usually means a slightly better, steadier result — but slower. 100 (the default) to 200 is a common sweet spot. It's the same idea as asking 200 people for an opinion instead of 5: the crowd's average is more reliable.
+>
+> Notice `GradientBoostingClassifier` here uses *only* `random_state=42` — we're letting all its other knobs stay at their sensible defaults. You don't have to set every setting; defaults exist for a reason. We only touch a knob when we have a clear purpose.
+
+When you run it, you'll see something like this:
 
 | Model | Accuracy | Character |
 |---|---|---|
@@ -1042,6 +1166,8 @@ Tick each box before you finish:
 - [ ] I fixed the `TotalCharges` problem and understood why it happened
 - [ ] I can explain the 73% baseline and why it's my honesty anchor
 - [ ] I built a Pipeline that prepares data automatically
+- [ ] I can explain what SimpleImputer, StandardScaler, and OneHotEncoder each do
+- [ ] I understand what random_state, max_iter, and n_estimators mean (and why those numbers)
 - [ ] I understand why we split data *before* preparing it (no leakage)
 - [ ] I compared 3 models and read a confusion matrix as business cost
 - [ ] I saved the whole pipeline with `joblib` and copied it to Google Drive
@@ -1103,6 +1229,26 @@ model.predict(new_data)
 | Google Drive | Where Colab files survive after the session ends |
 | Version pinning | Unlocked versions = broken model in 6 months |
 | handle_unknown | The setting that saves you in the real world |
+
+### ⚙️ Every Setting We Used, in One Place
+
+Keep this handy — whenever you see one of these in code, you'll know exactly what it does and why.
+
+| Setting | What it does | The number we chose & why |
+|---|---|---|
+| `test_size=0.20` | Fraction of data hidden for testing | 20% — enough to grade fairly, not so much the model starves |
+| `random_state=42` | Fixes the "random" shuffle so results repeat | Any fixed number works; 42 is a programmer's in-joke |
+| `stratify=y` | Keeps the same Yes/No ratio in both halves | Ensures train & test are fair miniatures of the whole |
+| `strategy="median"` | How `SimpleImputer` fills blank **numbers** | Median resists extreme outliers |
+| `strategy="most_frequent"` | How `SimpleImputer` fills blank **text** | Can't average words — use the commonest category |
+| `handle_unknown="ignore"` | What `OneHotEncoder` does with a new category | Sets all boxes to 0 instead of crashing |
+| `max_iter=1000` | Max learning steps for Logistic Regression | Default 100 is sometimes too few; 1000 avoids "didn't finish" |
+| `n_estimators=200` | Number of trees in a Random Forest | More trees vote = steadier result; 200 balances speed |
+| `cv=5` | Folds in cross-validation | 5 rounds — reliable yet fast |
+| `scoring="accuracy"` | How each round is graded | % correct; could swap for `"recall"` on imbalanced data |
+
+> [!TIP]
+> **The one rule to remember about all settings:** they're called **hyperparameters** — knobs you set *before* training. You never have to set them all; the defaults are usually sensible. Override one only when you have a reason, and now you know the reason behind each one we touched.
 
 ---
 

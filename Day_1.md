@@ -1,0 +1,949 @@
+<div align="center">
+
+# 🧠 Day 1 — Machine Learning & MLOps in Practice
+### CodeLucky · 12-Day Programme on Modern AI, Generative AI & Agentic Systems
+**Module M1 · 6 Hours · 100% Hands-On · Runs Entirely in Google Colab**
+
+<img src="https://img.shields.io/badge/Module-M1-1d4ed8?style=for-the-badge" alt="Module M1"/>
+<img src="https://img.shields.io/badge/Duration-6_hours-0891b2?style=for-the-badge" alt="6 hours"/>
+<img src="https://img.shields.io/badge/Level-Beginner_Friendly-16a34a?style=for-the-badge" alt="Beginner Friendly"/>
+<img src="https://img.shields.io/badge/Platform-Google_Colab-f9ab00?style=for-the-badge" alt="Google Colab"/>
+
+</div>
+
+---
+
+> [!NOTE]
+> **How to use this document.** This is the *only* file you need for Day 1 — everything is here, including where to get the data. We will work entirely inside **Google Colab** (a free Python notebook that runs in your web browser — nothing to install on your computer). Read top to bottom and type each code cell yourself as you go; don't just copy-paste. Every concept is explained from the beginning, so no prior machine-learning experience is needed. By the end of today you will have built, tested, and shared a real working AI model.
+
+---
+
+## 🌱 Before We Begin: What Are We Actually Doing Today?
+
+Imagine a telecom company (like Airtel or Jio). Every month, some customers **leave** and switch to a competitor. This is called **churn**. Losing a customer is expensive, so the company desperately wants to know: *"Which customers are about to leave, so we can offer them a discount before they go?"*
+
+A human can't read 7,000 customer records and guess. But a **machine learning model** can learn the patterns of who tends to leave, and then predict it for new customers. That's exactly what we will build today.
+
+> [!IMPORTANT]
+> **What is a "machine learning model"?**
+> A model is a program that **learns from examples instead of being explicitly programmed**. We don't write rules like *"if contract is monthly, then churn."* Instead, we show the model thousands of past customers (who we already know stayed or left), and it figures out the patterns on its own. After learning, it can predict the outcome for customers it has never seen.
+
+```mermaid
+flowchart LR
+    A["📋 Past customers<br/>(we KNOW who left)"] --> B["🧠 Model learns<br/>the patterns"]
+    B --> C["🔮 Predict for NEW<br/>customers"]
+    C --> D["💰 Business acts<br/>(offer discount)"]
+    style A fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    style B fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    style C fill:#cffafe,stroke:#0891b2,color:#155e75
+    style D fill:#dcfce7,stroke:#16a34a,color:#14532d
+```
+
+> [!IMPORTANT]
+> **And what is "MLOps"?**
+> Building a model in a learning notebook is easy. Making it work reliably *in the real world* — so a colleague can run it next year on a different computer and get the same answer — is the hard part. **MLOps** (Machine Learning + Operations) is the set of good habits that make a model trustworthy, repeatable, and shareable. Today you learn both: the model **and** the habits around it.
+
+---
+
+## 🎯 Day 1 at a Glance
+
+| | |
+|---|---|
+| 🧩 **What we build** | A model that predicts which telecom customers will leave |
+| 🗂️ **Data we use** | "Telco Customer Churn" — a real, free dataset of ~7,000 customers (download steps below) |
+| 💻 **Where we work** | 100% inside Google Colab — no installation on your computer |
+| ⏱️ **Structure** | 3 sessions × 2 hours |
+| 🛠️ **Tools** | Python · pandas · scikit-learn · joblib · Google Drive · GitHub |
+| 🏁 **What you take home** | A shareable online project (on GitHub) containing your trained model |
+
+### The Day 1 Journey
+
+```mermaid
+flowchart LR
+    A["📥 Session 1<br/>Get data &<br/>train a first model"] --> B["⚖️ Session 2<br/>Try 3 models &<br/>judge them fairly"]
+    B --> C["📦 Session 3<br/>Save, share online &<br/>prove it works elsewhere"]
+    C --> D(["🏆 Outcome<br/>Your model, live<br/>on GitHub"])
+    style A fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    style B fill:#cffafe,stroke:#0891b2,color:#155e75
+    style C fill:#dcfce7,stroke:#16a34a,color:#14532d
+    style D fill:#f3e8ff,stroke:#7c3aed,color:#581c87
+```
+
+---
+
+## 📖 The Vocabulary You'll Need (5 min)
+
+Before any code, here are the only terms you must know. Keep this table handy.
+
+| Term | Plain-English meaning |
+|---|---|
+| **Dataset** | A table of data — rows are examples, columns are details about each example |
+| **Row** | One example (here: one customer) |
+| **Column / Feature** | One piece of information about each example (e.g. monthly bill, contract type) |
+| **Target / Label** | The thing we want to predict (here: did the customer churn — Yes/No?) |
+| **Training** | The process where the model studies past examples and learns patterns |
+| **Model** | The learned program that can make predictions |
+| **Prediction** | The model's guess for a new example |
+| **Accuracy** | Out of 100 predictions, how many the model got right |
+
+```mermaid
+flowchart TD
+    subgraph T["📊 A Dataset is Just a Table"]
+        direction TB
+        H["customerID · gender · tenure · MonthlyCharges · ... · Churn"]
+        R1["7590-VHVEG · Female · 1 · 29.85 · ... · No"]
+        R2["3668-QPYBK · Male · 34 · 56.95 · ... · Yes"]
+        H --> R1 --> R2
+    end
+    note["These columns are FEATURES (inputs).<br/>Churn is the TARGET (what we predict)."]
+    style note fill:#fef3c7,stroke:#d97706,color:#78350f
+```
+
+---
+
+## 🧭 The Big Idea That Runs Through Today (10 min)
+
+> [!IMPORTANT]
+> **One sentence to remember all day:**
+> **"A model that works in a learning notebook and a model that works in the real world are two different things."**
+
+Most beginners learn only the left-hand column below. The whole point of today is to learn the right-hand column too.
+
+| Question | 📓 The beginner way | 🏭 The professional (MLOps) way |
+|---|---|---|
+| How do I prepare data? | Manually, step by step, easy to forget a step | Packaged into one reusable object |
+| How do I test honestly? | Just look at the accuracy number | Compare against a fair baseline |
+| Where does my model live? | Inside memory — it vanishes when I close the notebook | Saved to a file that can be reloaded later |
+| Can a colleague run it? | "It works on my computer" | "It works on **any** computer" |
+
+We will deliberately experience the *wrong* way and then fix it — because seeing the mistake is the best way to understand why the right way matters.
+
+---
+
+## 🚀 Getting Started with Google Colab (10 min)
+
+We do everything in **Google Colab**. You only need a Google account (Gmail) and a web browser.
+
+> [!NOTE]
+> **What is Google Colab?** It's a free service from Google that gives you a Python notebook running on Google's computers, right inside your browser. There's nothing to install — no Python, no setup. A notebook is made of **cells**: you type code into a cell and press **Shift + Enter** to run it. Output appears right below the cell.
+
+**Open your notebook:**
+
+1. Go to **[https://colab.research.google.com](https://colab.research.google.com)**
+2. Click **File → New notebook in Drive** (this saves it automatically to your Google Drive).
+3. Rename it (top-left) to something like `Day1_Churn_Model`.
+
+```mermaid
+flowchart LR
+    G["🌐 Open<br/>colab.research.google.com"] --> N["📓 New notebook"]
+    N --> C["⌨️ Type code in a cell"]
+    C --> R["▶️ Shift + Enter to run"]
+    R --> O["📤 See output below"]
+    style G fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    style O fill:#dcfce7,stroke:#16a34a,color:#14532d
+```
+
+> [!TIP]
+> **Two kinds of commands you'll see in Colab:**
+> - Normal **Python** code (e.g. `import pandas`).
+> - Lines starting with `!` are **system commands** (e.g. `!pip install ...`). The `!` tells Colab "run this on the underlying computer, not as Python." This is how we install tools and download files.
+
+**First cell — install the exact tool versions we'll use today.** Colab already has most of these, but pinning versions now prevents surprises later (you'll see why in Session 3).
+
+```python
+# Run this in your FIRST Colab cell
+!pip install pandas==2.2.2 scikit-learn==1.5.1 joblib==1.4.2 matplotlib==3.9.0 -q
+print("✅ Tools installed. You're ready to go.")
+```
+
+> [!TIP]
+> **What did we just install?**
+> - **pandas** — handles tables of data (like Excel, but in code)
+> - **scikit-learn** — the machine-learning toolkit; builds and trains models
+> - **joblib** — saves a trained model to a file
+> - **matplotlib** — draws charts
+>
+> The `-q` just means "quiet" (less clutter in the output). After this runs, you may see a button saying *"Restart runtime"* — if so, click it once, then carry on.
+
+---
+
+<div align="center">
+
+## 🟦 SESSION 1 — Get the Data and Train Your First Model
+### (2 hours)
+
+</div>
+
+> **Goal of this session:** Download the real customer dataset, turn the raw messy file into a clean trained model that predicts churn, and understand *every* step of why we do what we do.
+
+### 1.1 Getting the Telco Churn Dataset (15 min)
+
+This is the famous **"Telco Customer Churn"** dataset — about 7,000 real telecom customers, each labelled as having churned (left) or not. It's free and public.
+
+> [!IMPORTANT]
+> **Where the data comes from.** The dataset was originally published by IBM as a sample dataset and is now mirrored in many public places. The most reliable, no-login way to get it inside Colab is to download it directly from a public GitHub mirror with one command. Run the cell below — it fetches the file straight into your Colab session.
+
+```python
+# Download the Telco Churn CSV directly into Colab (no login needed)
+!wget -q https://raw.githubusercontent.com/IBM/telco-customer-churn-on-icp4d/master/data/Telco-Customer-Churn.csv -O telco_churn.csv
+
+print("✅ Downloaded telco_churn.csv")
+
+# Confirm the file is here
+import os
+print("File size:", round(os.path.getsize("telco_churn.csv") / 1024, 1), "KB")
+```
+
+> [!NOTE]
+> **Three ways to get this data (in case the link above ever changes):**
+> 1. **One-command download (recommended)** — the `!wget` cell above. Easiest in Colab.
+> 2. **Kaggle** — search *"Telco Customer Churn"* on [kaggle.com/datasets](https://www.kaggle.com/datasets/blastchar/telco-customer-churn). Download the CSV, then in Colab click the 📁 folder icon on the left → **Upload** → choose the file. Rename it to `telco_churn.csv`.
+> 3. **Upload from your computer** — if you already have the CSV, run the cell below and pick it from your machine.
+>
+> ```python
+> # OPTIONAL — only if you want to upload the CSV from your own computer
+> from google.colab import files
+> uploaded = files.upload()        # a "Choose Files" button appears
+> # After uploading, rename it so the rest of the notebook finds it:
+> import os
+> for name in uploaded:
+>     os.rename(name, "telco_churn.csv")
+> ```
+
+> [!WARNING]
+> **A note about Colab and your files.** Files you download or create in Colab live in a *temporary* space that is wiped when your session ends (after a few hours of inactivity, or when you close it). That's fine for today — and in Session 3 you'll learn how to save your model permanently to Google Drive and GitHub so it never disappears.
+
+### 1.2 Loading the Data (10 min)
+
+> [!NOTE]
+> **What is a CSV file?** "CSV" means *Comma-Separated Values*. It's the simplest way to store a table: each line is a row, and commas separate the columns. Excel can open it, and so can Python.
+
+```python
+import pandas as pd
+
+# Read the CSV file into a "DataFrame" — pandas's name for a table
+df = pd.read_csv("telco_churn.csv")
+
+# How big is it? (rows, columns)
+print("Shape:", df.shape)          # (7043, 21) -> 7043 customers, 21 columns
+
+# Peek at the first 5 rows
+df.head()
+```
+
+> [!TIP]
+> `df` is just a variable name (short for *DataFrame*). `df.head()` shows the top few rows so you can eyeball what you're working with. In Colab, the table renders as a neat, scrollable grid right under the cell. Always look at your data before doing anything else.
+
+### 1.3 Understanding the Data Before Touching a Model (20 min)
+
+> [!IMPORTANT]
+> **The golden rule:** Never build a model before you understand your data. Most failures in machine learning are actually *data* problems in disguise.
+
+```python
+# 1. What columns exist, and what type is each?
+df.info()
+
+# 2. Look at the TARGET — the thing we predict. Is it balanced?
+print(df["Churn"].value_counts(normalize=True))
+# No     0.73   -> 73% of customers stayed
+# Yes    0.27   -> 27% of customers left
+```
+
+This 73%/27% split is hugely important. Here's why:
+
+> [!IMPORTANT]
+> **The "baseline" — your honesty check.**
+> Imagine a lazy model that *always* predicts "No" (the customer will stay) for everyone. Since 73% of customers really do stay, this lazy model is right **73% of the time** — without learning anything!
+>
+> So **73% is the score to beat.** If our real model scores below 73%, it is worse than doing nothing. Keep `73%` in mind; it's our anchor for the whole day.
+
+Now, a real-world data problem hiding in this dataset:
+
+```python
+# The column "TotalCharges" should be a number, but Python sees it as text!
+print(df["TotalCharges"].dtype)        # 'object' means text
+```
+
+Why? Because 11 brand-new customers have a **blank space** `" "` instead of a number (they haven't been charged yet). One blank space turns the whole column into text. Let's fix it:
+
+```python
+# Convert the column to numbers. Blanks that can't convert become "NaN" (missing)
+df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
+
+# How many are missing now?
+print("Missing values:", df["TotalCharges"].isna().sum())   # 11
+
+# These are new customers, so a sensible value is 0
+df["TotalCharges"] = df["TotalCharges"].fillna(0)
+```
+
+> [!TIP]
+> **What is "NaN"?** It stands for *Not a Number* — Python's way of marking a missing or empty value. Real datasets are full of them, and handling them is a core skill.
+
+### 1.4 Splitting Inputs from the Answer (5 min)
+
+The model needs two things: the **inputs** (features) and the **correct answers** (target) to learn from.
+
+```python
+# Remove the customer ID — it's just a random code with no useful pattern
+df = df.drop(columns=["customerID"])
+
+# y = the answer we want to predict. Convert "Yes"/"No" to 1/0 (computers prefer numbers)
+y = (df["Churn"] == "Yes").astype(int)
+
+# X = everything else (all the input features)
+X = df.drop(columns=["Churn"])
+```
+
+> [!NOTE]
+> **Why `X` and `y`?** This is a universal convention in machine learning. `X` (capital) holds the input features; `y` (lowercase) holds the target answers. You'll see this everywhere.
+
+Now we separate columns by type, because numbers and text need different handling:
+
+```python
+# Numeric columns (e.g. tenure, MonthlyCharges)
+numeric_features = X.select_dtypes(include=["int64", "float64"]).columns.tolist()
+
+# Text/category columns (e.g. gender, Contract type)
+categorical_features = X.select_dtypes(include=["object"]).columns.tolist()
+
+print("Numbers:", numeric_features)
+print("Categories:", categorical_features)
+```
+
+### 1.5 The Most Important Idea of the Day: Splitting the Data (15 min)
+
+> [!IMPORTANT]
+> **Why we split data into "train" and "test".**
+> If a student sees the exam questions *before* the exam, scoring 100% proves nothing. The same is true for models. We must hide some data from the model during learning, then test it on that hidden data to get an *honest* score.
+>
+> - **Training set (80%)** -> the model studies this.
+> - **Test set (20%)** -> kept secret; used only to grade the model fairly.
+
+```python
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.20,         # keep 20% hidden for testing
+    random_state=42,        # makes the split identical every time you run it
+    stratify=y              # keep the same 73/27 ratio in both halves
+)
+
+print(f"Training on {X_train.shape[0]} customers, testing on {X_test.shape[0]}")
+```
+
+```mermaid
+flowchart LR
+    D["🗃️ All Data<br/>7043 customers"] --> S{{"Split<br/>80% / 20%"}}
+    S -->|"80% — model studies this"| TR["🏋️ Training Set<br/>5634 customers"]
+    S -->|"20% — kept secret"| TE["🔒 Test Set<br/>1409 customers"]
+    TR --> M["Model learns"]
+    TE --> E["Honest grade"]
+    style TR fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    style TE fill:#fef3c7,stroke:#d97706,color:#78350f
+```
+
+> [!WARNING]
+> **The classic beginner mistake (called "data leakage").** If you clean or scale your data using the *whole* dataset before splitting, secret test information sneaks into training. Your scores look amazing in practice but collapse in the real world. **Rule: split first, then prepare.** Always.
+
+### 1.6 The Pipeline — Packaging All Preparation Into One Object (35 min)
+
+Real data needs cleaning before a model can use it: fill in missing values, convert text categories into numbers, and put numbers on a common scale. Doing this by hand every time is error-prone. Instead we build a **Pipeline** — a single object that remembers all these steps and applies them automatically.
+
+> [!NOTE]
+> **What do these preparation steps mean?**
+> - **Imputing** = filling in missing values (e.g. replace a blank with the median).
+> - **Scaling** = putting numbers on a comparable range, so a column measured in thousands doesn't overpower one measured in single digits.
+> - **One-Hot Encoding** = turning a text category into numbers. For example "Contract" with values *Monthly / Yearly / Two-year* becomes three yes/no columns the model can understand.
+
+```python
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+
+# --- Recipe for NUMERIC columns: fill missing -> put on common scale ---
+numeric_steps = Pipeline(steps=[
+    ("fill_missing", SimpleImputer(strategy="median")),
+    ("scale", StandardScaler()),
+])
+
+# --- Recipe for TEXT columns: fill missing -> convert to numbers ---
+categorical_steps = Pipeline(steps=[
+    ("fill_missing", SimpleImputer(strategy="most_frequent")),
+    ("to_numbers", OneHotEncoder(handle_unknown="ignore")),
+])
+
+# --- Apply each recipe to the right columns ---
+preprocessor = ColumnTransformer(transformers=[
+    ("numbers", numeric_steps, numeric_features),
+    ("categories", categorical_steps, categorical_features),
+])
+
+# --- The complete model: preparation + the learning algorithm, in ONE object ---
+model = Pipeline(steps=[
+    ("prepare", preprocessor),
+    ("learn", LogisticRegression(max_iter=1000, random_state=42)),
+])
+
+# Train the model on the training data only
+model.fit(X_train, y_train)
+print("Model trained!")
+```
+
+Here's how data flows through the pipeline:
+
+```mermaid
+flowchart TD
+    X["📊 A customer's data"] --> CT{{"Pipeline routes<br/>each column"}}
+    CT -->|number columns| NUM["Fill missing<br/>-> Scale to common range"]
+    CT -->|text columns| CAT["Fill missing<br/>-> Convert to numbers"]
+    NUM --> JOIN["🔗 Combine everything"]
+    CAT --> JOIN
+    JOIN --> ALGO["🤖 Learning algorithm<br/>(Logistic Regression)"]
+    ALGO --> OUT["Prediction: Will churn? Yes/No"]
+    style CT fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    style ALGO fill:#dcfce7,stroke:#16a34a,color:#14532d
+```
+
+> [!NOTE]
+> **What is "Logistic Regression"?** Despite the scary name, it's one of the simplest and most reliable models for yes/no questions. It looks at all the features and outputs a probability between 0 and 1 (e.g. "82% likely to churn"). We start with it because it's fast and easy to understand.
+>
+> **Why does `handle_unknown="ignore"` matter?** In the real world, a new customer might have a category the model never saw in training. Without this setting, the program would crash. With it, the model handles the surprise gracefully. This one small choice prevents real production failures.
+
+### 1.7 Grading the Model Honestly (25 min)
+
+A single test score can be lucky. **Cross-validation** is a fairer test: it splits the training data into 5 parts, trains on 4 and tests on the 5th, then rotates — giving 5 scores instead of 1.
+
+```python
+from sklearn.model_selection import cross_val_score
+
+scores = cross_val_score(model, X_train, y_train, cv=5, scoring="accuracy")
+
+print(f"Average accuracy: {scores.mean():.3f}")
+print(f"Variation (+/-):  {scores.std():.3f}")
+print(f"Baseline to beat: 0.730")
+```
+
+```mermaid
+flowchart LR
+    T["🏋️ Training Data"] --> F1["Test on Part 1<br/>(train on 2-5)"]
+    T --> F2["Test on Part 2<br/>(train on rest)"]
+    T --> F3["Test on Part 3"]
+    T --> F4["Test on Part 4"]
+    T --> F5["Test on Part 5"]
+    F1 --> AVG["📊 Average the<br/>5 scores"]
+    F2 --> AVG
+    F3 --> AVG
+    F4 --> AVG
+    F5 --> AVG
+    style AVG fill:#fef3c7,stroke:#d97706,color:#78350f
+```
+
+> [!IMPORTANT]
+> **How to read the result.** A score like `0.804 +/- 0.012` means: on average 80.4% correct, and the score barely wobbles between folds (±1.2%) — that's a *stable, trustworthy* model. If instead you saw `0.804 +/- 0.090`, the model is jumpy and unreliable. Always read the variation, not just the average. And remember: anything above our **0.73 baseline** means the model genuinely learned something.
+
+### 1.8 🧪 Try It Yourself (15 min)
+
+> 1. Run the download cell and load the dataset; fix the `TotalCharges` problem yourself.
+> 2. Build the full pipeline by typing it out (don't copy-paste — typing builds memory).
+> 3. Print your average accuracy and compare it to the 73% baseline. Did you beat it?
+> 4. **Bonus:** Change `strategy="median"` to `strategy="mean"` in the numeric steps. Does the score change much? (It shouldn't — and noticing that is itself a useful insight.)
+
+✅ **Session 1 done:** You have a trained model that prepares messy data automatically and beats the lazy 73% baseline.
+
+---
+
+<div align="center">
+
+## 🟦 SESSION 2 — Try Three Models and Judge Them Fairly
+### (2 hours)
+
+</div>
+
+> **Goal of this session:** Swap in three different learning algorithms, compare them honestly, and learn to read *what kind* of mistakes a model makes — not just how often it's right.
+
+### 2.1 The Beauty of the Pipeline: Swapping Models Is One Line (10 min)
+
+Because all the data-preparation is packaged in the pipeline, trying a new algorithm only means changing the final step. Everything else stays identical and fair.
+
+```mermaid
+flowchart LR
+    PRE["🔧 Same data preparation<br/>for everyone"] --> A["🤖 Logistic Regression"]
+    PRE --> B["🌲 Random Forest"]
+    PRE --> C["🚀 Gradient Boosting"]
+    A --> CMP["⚖️ Compare fairly"]
+    B --> CMP
+    C --> CMP
+    style PRE fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    style CMP fill:#fef3c7,stroke:#d97706,color:#78350f
+```
+
+### 2.2 Meet the Three Models (15 min)
+
+> [!NOTE]
+> **Three different "brains," explained simply:**
+> - 🤖 **Logistic Regression** — draws a straight dividing line between "will stay" and "will leave." Simple, fast, surprisingly effective.
+> - 🌲 **Random Forest** — asks hundreds of yes/no questions (like a flowchart) and takes a majority vote. More flexible.
+> - 🚀 **Gradient Boosting** — builds many small models, each fixing the mistakes of the last. Often the most accurate, but the slowest to train.
+
+### 2.3 Compare All Three (20 min)
+
+```python
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+
+# A helper that wraps any algorithm in our shared preparation pipeline
+def build_model(algorithm):
+    return Pipeline(steps=[
+        ("prepare", preprocessor),
+        ("learn", algorithm),
+    ])
+
+# The three contenders
+candidates = {
+    "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42),
+    "Random Forest":       RandomForestClassifier(n_estimators=200, random_state=42),
+    "Gradient Boosting":   GradientBoostingClassifier(random_state=42),
+}
+
+# Test each one fairly with cross-validation
+for name, algorithm in candidates.items():
+    pipe = build_model(algorithm)
+    scores = cross_val_score(pipe, X_train, y_train, cv=5, scoring="accuracy")
+    print(f"{name:<22} {scores.mean():.3f} +/- {scores.std():.3f}")
+```
+
+You'll see something like:
+
+| Model | Accuracy | Character |
+|---|---|---|
+| 🤖 Logistic Regression | ~0.80 | Simple and fast |
+| 🌲 Random Forest | ~0.79 | Flexible, robust |
+| 🚀 Gradient Boosting | ~0.80 | Often best, but slowest |
+
+> [!IMPORTANT]
+> **A surprising and valuable lesson.** Beginners expect the fanciest model to win by a mile. It usually doesn't! On everyday table data, a *simple* Logistic Regression is often within 1% of the fanciest model, trains far faster, and is easier to explain. **Complexity is a cost you should only pay when it earns its keep.**
+
+### 2.4 Beyond Accuracy: The Confusion Matrix (35 min)
+
+Accuracy alone can mislead. Remember the lazy model that scored 73% by always saying "No"? Accuracy didn't reveal that it never catches a single leaver. The **confusion matrix** shows exactly *what kind* of mistakes happen.
+
+```python
+from sklearn.metrics import confusion_matrix, classification_report, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+
+# Train our chosen model and test it on the secret test set
+final = build_model(GradientBoostingClassifier(random_state=42))
+final.fit(X_train, y_train)
+predictions = final.predict(X_test)
+
+# A full report of how well it did
+print(classification_report(y_test, predictions, target_names=["Stayed", "Churned"]))
+
+# Draw the confusion matrix (it appears right under the cell in Colab)
+matrix = confusion_matrix(y_test, predictions)
+ConfusionMatrixDisplay(matrix, display_labels=["Stayed", "Churned"]).plot(cmap="Blues")
+plt.title("Who did the model get right and wrong?")
+plt.show()
+```
+
+A confusion matrix has four boxes. Here's what each means in plain language:
+
+```mermaid
+flowchart TD
+    subgraph CM["🔲 The Four Outcomes"]
+        TN["✅ Correct<br/>Said 'will stay',<br/>they stayed"]
+        FP["⚠️ False Alarm<br/>Said 'will leave',<br/>but they stayed<br/>(wasted a discount)"]
+        FN["🚨 Missed!<br/>Said 'will stay',<br/>but they LEFT<br/>(lost a customer)"]
+        TP["✅ Correct<br/>Said 'will leave',<br/>they left"]
+    end
+    style FN fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    style FP fill:#fef3c7,stroke:#d97706,color:#78350f
+    style TP fill:#dcfce7,stroke:#16a34a,color:#14532d
+    style TN fill:#dcfce7,stroke:#16a34a,color:#14532d
+```
+
+> [!IMPORTANT]
+> **Turning numbers into business sense.** For this telecom problem, the worst mistake is the 🚨 **"Missed!"** box — predicting a customer will stay when they actually leave. That's a lost customer the company never tried to save. A "False Alarm" only costs a small discount. So we care most about **catching real leavers** — even if it means a few false alarms. This is how a good analyst translates a statistic into a business decision.
+
+```python
+from sklearn.metrics import precision_score, recall_score
+
+# "Recall" = of all customers who really left, how many did we catch?
+print(f"Catch rate of real leavers (recall): {recall_score(y_test, predictions):.3f}")
+# "Precision" = of everyone we flagged, how many really left?
+print(f"Accuracy of our alarms (precision):  {precision_score(y_test, predictions):.3f}")
+```
+
+### 2.5 🧪 Try It Yourself (15 min)
+
+> 1. Run all three models and write down their scores.
+> 2. Draw the confusion matrix for your best model.
+> 3. **Think:** does your model make more "False Alarms" or more "Missed!" errors? Write one sentence on what that costs the company.
+> 4. **Bonus:** add `class_weight="balanced"` inside `LogisticRegression(...)`. Watch the catch-rate (recall) go up while overall accuracy dips slightly. Discuss: could that actually be the *better* model for this business?
+
+✅ **Session 2 done:** You compared three models fairly and learned to read mistakes as business costs, not just numbers.
+
+---
+
+<div align="center">
+
+## 🟦 SESSION 3 — Save Your Model, Share It Online, and Prove It Works
+### (2 hours)
+
+</div>
+
+> **Goal of this session:** A model stuck inside a Colab session is useless to anyone else — and disappears when the session ends. We'll save it to a file, store it permanently in Google Drive, write a small script that uses it, upload the whole project to GitHub, and then reload it in a *brand-new* Colab to prove it truly works anywhere.
+
+### 3.1 Saving the Model to a File (15 min)
+
+Right now your trained model lives only in Colab's temporary memory. We **save** it to a file so it can be reused later without retraining.
+
+> [!IMPORTANT]
+> **We save the entire pipeline, not just the algorithm.** Because our pipeline includes all the data-preparation steps, the saved file already knows how to clean, scale, and encode new data. Anyone who loads it gets the full package — they don't need to redo any preparation.
+
+```python
+import joblib
+
+# Train the final model on all the training data
+final_model = build_model(GradientBoostingClassifier(random_state=42))
+final_model.fit(X_train, y_train)
+
+# Save it to a file (.pkl is the standard extension for saved Python objects)
+joblib.dump(final_model, "churn_pipeline.pkl")
+print("Model saved as churn_pipeline.pkl")
+```
+
+```mermaid
+flowchart LR
+    M["🧠 Trained model<br/>(in memory)"] -->|save| F["📦 churn_pipeline.pkl<br/>(a file)"]
+    F -->|load later| M2["🧠 Same model<br/>(any computer)"]
+    M2 --> P["🔮 Make predictions"]
+    style F fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    style P fill:#dcfce7,stroke:#16a34a,color:#14532d
+```
+
+### 3.2 Keep It Permanently: Save to Google Drive (10 min)
+
+> [!WARNING]
+> **Remember:** Colab's files vanish when the session ends. To keep your model forever, copy it into your Google Drive.
+
+```python
+# Connect your Google Drive to this Colab notebook
+from google.colab import drive
+drive.mount('/content/drive')
+# A pop-up will ask permission — click your account and "Allow"
+```
+
+```python
+# Make a folder in your Drive and copy the model there
+import os, shutil
+os.makedirs('/content/drive/MyDrive/telco_churn_model', exist_ok=True)
+shutil.copy('churn_pipeline.pkl', '/content/drive/MyDrive/telco_churn_model/churn_pipeline.pkl')
+print("✅ Model safely saved to your Google Drive")
+```
+
+> [!TIP]
+> Now even if Colab resets, your model is safe in Drive. You can also download it straight to your computer with: `from google.colab import files; files.download('churn_pipeline.pkl')`.
+
+### 3.3 A Small Script That Uses the Saved Model (25 min)
+
+Let's write a reusable function that loads the saved model and predicts churn for a new customer. It contains *no training code* — just loading and predicting. (In a real project this would live in a file called `predict.py`; in Colab we'll keep it in a cell.)
+
+```python
+import joblib
+import pandas as pd
+
+def load_model(path="churn_pipeline.pkl"):
+    """Open the saved model file."""
+    return joblib.load(path)
+
+def predict(customers, model=None):
+    """Take a list of customers and return predictions + churn probability."""
+    model = model or load_model()
+    data = pd.DataFrame(customers)
+    data["will_churn"] = ["Yes" if p == 1 else "No" for p in model.predict(data)]
+    data["churn_probability"] = model.predict_proba(data)[:, 1].round(3)
+    return data
+
+# Try it on one made-up customer
+sample_customer = [{
+    "gender": "Female", "SeniorCitizen": 0, "Partner": "Yes", "Dependents": "No",
+    "tenure": 2, "PhoneService": "Yes", "MultipleLines": "No",
+    "InternetService": "Fiber optic", "OnlineSecurity": "No", "OnlineBackup": "No",
+    "DeviceProtection": "No", "TechSupport": "No", "StreamingTV": "No",
+    "StreamingMovies": "No", "Contract": "Month-to-month", "PaperlessBilling": "Yes",
+    "PaymentMethod": "Electronic check", "MonthlyCharges": 70.7, "TotalCharges": 151.65,
+}]
+
+result = predict(sample_customer)
+print(result[["will_churn", "churn_probability"]].to_string(index=False))
+# will_churn  churn_probability
+#        Yes              0.812
+```
+
+> [!TIP]
+> The example customer above (short tenure, month-to-month contract, electronic-check payment) is a classic high-risk profile, so the model should flag a high churn probability. If you ever get an error here, the most common cause is that a column name in your customer data doesn't exactly match the training column names.
+
+### 3.4 Locking In the Exact Tool Versions (10 min)
+
+> [!WARNING]
+> **The number-one reason a saved model breaks later is a version mismatch.** A model saved with scikit-learn version 1.5 may refuse to load under version 1.3. We "freeze" the exact versions into a file so anyone can recreate your exact setup.
+
+```python
+# Create a requirements.txt listing the exact versions used today
+with open("requirements.txt", "w") as f:
+    f.write("pandas==2.2.2\n")
+    f.write("scikit-learn==1.5.1\n")
+    f.write("joblib==1.4.2\n")
+    f.write("matplotlib==3.9.0\n")
+
+print(open("requirements.txt").read())
+```
+
+Anyone can later run `pip install -r requirements.txt` to match your environment perfectly.
+
+### 3.5 What is GitHub, and Why Upload? (10 min)
+
+> [!NOTE]
+> **GitHub explained simply.** GitHub is like Google Drive for code — but smarter. It stores your project online, keeps a history of every change, and lets others download and run your exact project. Putting your model on GitHub is how you share it with the world (or just your future self on a new laptop).
+
+```mermaid
+flowchart LR
+    W["💻 Your Colab"] -->|"add + commit"| L["📒 Saved locally<br/>with history"]
+    L -->|"push"| R["☁️ GitHub<br/>(online)"]
+    R -->|"anyone can clone"| C["🧑‍💻 Another person's<br/>computer / Colab"]
+    style R fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    style C fill:#dcfce7,stroke:#16a34a,color:#14532d
+```
+
+### 3.6 Uploading Your Project to GitHub from Colab (20 min)
+
+> [!NOTE]
+> **One-time setup.** Create a free account at [github.com](https://github.com). Then create a new **empty** repository called `telco-churn-mlops` (click the **+** top-right → *New repository* → leave it empty → *Create*). You'll also need a **Personal Access Token** (GitHub's password for code): go to **Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token**, tick the `repo` box, and copy the token somewhere safe. You'll paste it below.
+
+```python
+# Step 1: tell Git who you are (use your GitHub email/name)
+!git config --global user.email "you@example.com"
+!git config --global user.name "Your Name"
+
+# Step 2: organise the files we want to upload into one folder
+import os, shutil
+os.makedirs("telco-churn-mlops", exist_ok=True)
+shutil.copy("churn_pipeline.pkl", "telco-churn-mlops/churn_pipeline.pkl")
+shutil.copy("requirements.txt", "telco-churn-mlops/requirements.txt")
+
+# A short description file for the project
+with open("telco-churn-mlops/README.md", "w") as f:
+    f.write("# Telco Churn Model\nDay 1 project: predicts telecom customer churn.\n")
+
+print("✅ Project folder ready")
+```
+
+```python
+# Step 3: turn the folder into a Git project and push it to GitHub
+%cd telco-churn-mlops
+!git init -q
+!git add .
+!git commit -q -m "Day 1: churn model, requirements, and README"
+!git branch -M main
+
+# Paste YOUR username and token where shown. The token acts as your password.
+USERNAME = "YOUR-GITHUB-USERNAME"
+TOKEN = "YOUR-PERSONAL-ACCESS-TOKEN"   # the token you generated above
+!git remote add origin https://{USERNAME}:{TOKEN}@github.com/{USERNAME}/telco-churn-mlops.git
+!git push -u origin main
+%cd ..
+print("✅ Pushed to GitHub! Visit your repo to see it online.")
+```
+
+> [!WARNING]
+> **Keep your token private.** Never share a notebook that still has your real token typed in. After pushing, you can delete the token line. (For real projects, people store tokens more securely — but this is fine for learning.)
+
+### 3.7 The Proof: Reload in a Brand-New Colab (20 min)
+
+This is the moment everything comes together. Open a **fresh Colab notebook** (File → New notebook) — a clean machine that has never seen your work — and resurrect the model from GitHub.
+
+```python
+# --- Run this in a NEW, EMPTY Colab notebook ---
+
+# 1. Install the exact same tool versions
+!pip install scikit-learn==1.5.1 joblib==1.4.2 pandas==2.2.2 -q
+
+# 2. Download your project from GitHub (use your username)
+!git clone https://github.com/YOUR-GITHUB-USERNAME/telco-churn-mlops.git
+%cd telco-churn-mlops
+
+# 3. Load the saved model and predict — no retraining needed!
+import joblib, pandas as pd
+model = joblib.load("churn_pipeline.pkl")
+
+new_customer = pd.DataFrame([{
+    "gender": "Male", "SeniorCitizen": 1, "Partner": "No", "Dependents": "No",
+    "tenure": 1, "PhoneService": "Yes", "MultipleLines": "No",
+    "InternetService": "Fiber optic", "OnlineSecurity": "No", "OnlineBackup": "No",
+    "DeviceProtection": "No", "TechSupport": "No", "StreamingTV": "Yes",
+    "StreamingMovies": "Yes", "Contract": "Month-to-month", "PaperlessBilling": "Yes",
+    "PaymentMethod": "Electronic check", "MonthlyCharges": 95.0, "TotalCharges": 95.0,
+}])
+
+print("Prediction:", model.predict(new_customer)[0])
+print("Churn probability:", model.predict_proba(new_customer)[0, 1].round(3))
+```
+
+> [!IMPORTANT]
+> **This is the whole point of MLOps.** A model you trained in one Colab session now runs, unchanged, in a brand-new session — loaded by three simple commands a colleague could run. That's the difference between *"it works on my machine"* and *"it works on **any** machine."*
+
+### 3.8 🔥 Learning From a Deliberate Failure (15 min)
+
+The best way to understand why we pinned versions is to break it on purpose.
+
+```python
+# Install the WRONG (older) version, then try to load the model
+!pip install scikit-learn==1.3.0 -q
+import joblib
+model = joblib.load("churn_pipeline.pkl")
+# You'll get a warning or an error about version mismatch
+```
+
+> [!NOTE]
+> After running this, reinstall the correct version (`!pip install scikit-learn==1.5.1 -q`) and **restart the runtime** (Runtime → Restart runtime) so the rest of your notebook keeps working.
+
+Here are the three most common reasons a saved model fails to load later — and their fixes:
+
+| 💥 Problem | Why it happens | 🛠️ Fix |
+|---|---|---|
+| Version warning/error | The tool version changed | Pin versions in `requirements.txt` |
+| "Column not found" error | The input data has different columns | Check input columns match training |
+| "Unknown category" error | A new category appeared in real data | Use `handle_unknown="ignore"` (we did!) |
+
+> [!TIP]
+> Notice the fix for the third problem was *already built in Session 1*. Good decisions early prevent fires later — that's the essence of MLOps.
+
+### 3.9 🧪 Try It Yourself — The Big One (20 min)
+
+> 1. Save your best model as `churn_pipeline.pkl` and copy it to your Google Drive.
+> 2. Write the `predict` function and predict for a customer you make up.
+> 3. Create `requirements.txt`, then upload the whole project to GitHub from Colab.
+> 4. Open a fresh Colab notebook, clone your project, and reproduce a prediction.
+> 5. **The final proof:** share your GitHub link with a neighbour. Have them clone and run it in their own Colab. If their copy makes a prediction, **you have shipped a real, reproducible AI model.** 🎉
+
+✅ **Session 3 done:** Your model is saved, stored in Drive, shared on GitHub, and proven to work in a brand-new Colab session.
+
+---
+
+## 🏁 What You Built Today
+
+```mermaid
+mindmap
+  root(("🏆 Day 1<br/>You shipped<br/>a real model"))
+    ("📁 Online Project")
+      ("Uploaded to GitHub")
+      ("Saved in Google Drive")
+    ("🔧 Smart Pipeline")
+      ("Auto-cleans data")
+      ("Handles surprises")
+      ("No data leakage")
+    ("⚖️ Fair Comparison")
+      ("3 models tested")
+      ("Mistakes read as cost")
+    ("📦 Saved Model")
+      ("One reusable file")
+      ("A prediction function")
+      ("Locked versions")
+    ("♻️ Proven Anywhere")
+      ("Reloaded in fresh Colab")
+      ("A neighbour ran it")
+```
+
+> [!NOTE]
+> **Why today matters for the rest of the programme.** Everything ahead — chatbots, document Q&A systems, AI agents — is built on these same habits: get your data, prepare it cleanly, save your work, share it, and prove it runs elsewhere. The advanced AI you'll build on Day 12 is, at its core, the same disciplined act of engineering you just performed today.
+
+---
+
+## ✅ Day 1 Self-Check
+
+Tick each box before you finish:
+
+- [ ] I opened a Colab notebook and ran my first cell
+- [ ] I downloaded the Telco Churn dataset into Colab
+- [ ] I understand what a model, a feature, and a target are
+- [ ] I fixed the `TotalCharges` problem and understood why it happened
+- [ ] I can explain the 73% baseline and why it's my honesty anchor
+- [ ] I built a Pipeline that prepares data automatically
+- [ ] I understand why we split data *before* preparing it (no leakage)
+- [ ] I compared 3 models and read a confusion matrix as business cost
+- [ ] I saved the whole pipeline with `joblib` and copied it to Google Drive
+- [ ] I wrote a `predict` function and predicted for a new customer
+- [ ] I uploaded my project to GitHub with locked versions
+- [ ] I cloned and ran my model in a brand-new Colab notebook
+
+---
+
+## 📚 One-Page Cheat-Sheet
+
+```python
+# THE DAY 1 PATTERN — the shape to remember
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.model_selection import train_test_split, cross_val_score
+import joblib
+
+# 0. GET THE DATA (in Colab)
+# !wget -q https://raw.githubusercontent.com/IBM/telco-customer-churn-on-icp4d/master/data/Telco-Customer-Churn.csv -O telco_churn.csv
+
+# 1. SPLIT FIRST (prevents leakage)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
+
+# 2. PREPARE DATA BY COLUMN TYPE
+preprocessor = ColumnTransformer([
+    ("numbers", Pipeline([("fill", SimpleImputer(strategy="median")),
+                          ("scale", StandardScaler())]), numeric_features),
+    ("categories", Pipeline([("fill", SimpleImputer(strategy="most_frequent")),
+                             ("encode", OneHotEncoder(handle_unknown="ignore"))]), categorical_features),
+])
+
+# 3. BUNDLE PREPARATION + MODEL
+model = Pipeline([("prepare", preprocessor), ("learn", SomeAlgorithm())])
+model.fit(X_train, y_train)
+
+# 4. GRADE HONESTLY
+scores = cross_val_score(model, X_train, y_train, cv=5)   # beat the 0.73 baseline
+
+# 5. SAVE THE WHOLE PIPELINE
+joblib.dump(model, "churn_pipeline.pkl")
+
+# 6. RELOAD ANYWHERE
+model = joblib.load("churn_pipeline.pkl")
+model.predict(new_data)
+```
+
+| 🧠 Idea | 🔑 Remember this |
+|---|---|
+| Get the data | One `!wget` command pulls the CSV into Colab |
+| Data leakage | Split before you prepare — always |
+| Pipeline | Preparation + model in one saveable object |
+| Baseline | Beat the lazy 73% or you've achieved nothing |
+| Confusion matrix | Read "Missed!" vs "False Alarm" as money |
+| joblib | Save the *whole pipeline*, not just the model |
+| Google Drive | Where Colab files survive after the session ends |
+| Version pinning | Unlocked versions = broken model in 6 months |
+| handle_unknown | The setting that saves you in the real world |
+
+---
+
+<div align="center">
+
+### 🚀 Coming Up — Day 2: Deep Learning & How AI "Understands" Language
+*We go inside neural networks and the technology behind ChatGPT, built up step by step.*
+
+**CodeLucky · Faculty Development Programme**
+📧 admin@codelucky.com · 📞 +91 85689-70199 · 🌐 codelucky.com
+
+</div>

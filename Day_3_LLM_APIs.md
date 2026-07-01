@@ -225,11 +225,7 @@ Type a message and press Enter. Type `/bye` to exit.
 ### The call
 
 ```bash
-curl http://localhost:11434/api/generate -d '{
-  "model": "llama3.2:3b",
-  "prompt": "Why is the sky blue? Answer in 2 sentences.",
-  "stream": false
-}'
+curl http://localhost:11434/api/generate -d "{\"model\": \"llama3.2:3b\",\"prompt\": \"Why is the sky blue? Answer in 2 sentences.\",\"stream\": false}"
 ```
 
 **🪟 Windows PowerShell note:** PowerShell handles quotes differently. Use this version instead:

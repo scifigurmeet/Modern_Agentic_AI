@@ -357,11 +357,13 @@ print("Uploaded:", pdf_path)
 ### A.2 — Load and split it
 
 ```python
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import TextLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-pages = PyPDFLoader(pdf_path).load()          # one Document per page
-print(f"Loaded {len(pages)} pages")
+# Using TextLoader since the uploaded file is a Markdown (.md) file
+loader = TextLoader(pdf_path)
+pages = loader.load()
+print(f"Loaded {len(pages)} document(s)")
 
 splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 chunks = splitter.split_documents(pages)

@@ -13,7 +13,7 @@
 ```mermaid
 flowchart LR
     S1["🔨 Session 1<br/>RAG from scratch<br/>NumPy + cosine"] --> S2["🗄️ Session 2<br/>ChromaDB<br/>real vector DB"]
-    S2 --> S3["🔗 Session 3<br/>LangChain<br/>RetrievalQA"]
+    S2 --> S3["🔗 Session 3<br/>LangChain<br/>LCEL chain"]
     S3 --> OUT["🎓 You can explain<br/>what each layer does"]
     style S1 fill:#028090,color:#fff
     style S2 fill:#3ECF8E,color:#053b26
@@ -39,10 +39,12 @@ Run these first. We install everything Day 5 needs across all three sessions.
 
 ```python
 !pip install -q groq sentence-transformers numpy \
-               chromadb langchain langchain-groq \
+               chromadb langchain langchain-core langchain-groq \
                langchain-chroma langchain-huggingface \
                langchain-community pypdf
 ```
+
+> ⚠️ **Heads-up on LangChain versions.** LangChain v1 split the old all-in-one package into pieces. In this document we use the **modern building blocks** (`langchain_core`, `langchain_groq`, `langchain_chroma`) which are stable and import cleanly. We deliberately **avoid** the legacy `from langchain.chains import RetrievalQA`, which was moved to a separate `langchain-classic` package and often breaks in fresh Colab. If you *specifically* want the old `RetrievalQA`, run `!pip install -q langchain-classic` and import it with `from langchain_classic.chains import RetrievalQA` — but the approach below is the recommended, future-proof one.
 
 Add your Groq key via **Colab Secrets** (🔑 icon in the left sidebar → add `GROQ_API_KEY`), then:
 
@@ -261,53 +263,79 @@ print(rag_chroma("Can I work from home?"))
 
 ---
 
-# 🔗 SESSION 3 — LangChain's RetrievalQA (The Framework)
+# 🔗 SESSION 3 — LangChain (The Framework, LCEL Style)
 
 LangChain bundles *ingest → chunk → embed → store → retrieve → prompt → generate* into a few composable objects. Great for speed; the cost is a layer of abstraction. Let's build the **same** RAG and then judge the trade-off.
 
-### 3.1 — Build the whole chain
+### 3.1 — Build the whole chain (modern LCEL style)
+
+Instead of the legacy `RetrievalQA` object (which moved packages and breaks on fresh installs), we compose the same pipeline from small, stable pieces using LangChain's **LCEL** (`|` pipe) syntax. This is the current recommended way and it makes the retrieve → prompt → generate flow explicit.
 
 ```python
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
-from langchain.chains import RetrievalQA
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
 
 # ① Embeddings (same local model, wrapped for LangChain)
 embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 # ② Vector store built straight from our text list
 vectorstore = Chroma.from_texts(texts=corpus, embedding=embeddings)
+retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
 
 # ③ Groq as the LLM
 llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
 
-# ④ One object that does retrieve → stuff into prompt → generate
-qa = RetrievalQA.from_chain_type(
-    llm=llm,
-    chain_type="stuff",                       # "stuff" = put all chunks in one prompt
-    retriever=vectorstore.as_retriever(search_kwargs={"k": 2}),
-    return_source_documents=True,             # so we can see WHICH chunks were used
+# ④ A prompt that grounds the answer in retrieved context
+prompt = ChatPromptTemplate.from_template(
+    '''Answer using ONLY the context below.
+If it's not in the context, say "I don't have that information."
+
+Context:
+{context}
+
+Question: {question}'''
 )
 
-result = qa.invoke({"query": "How many holidays do I get?"})
-print("Answer:", result["result"])
-print("\nSources used:")
-for doc in result["source_documents"]:
-    print(" -", doc.page_content)
+# Helper: turn retrieved Document objects into plain text
+def format_docs(docs):
+    return "\n".join(d.page_content for d in docs)
+
+# ⑤ Compose the chain: retrieve → fill prompt → call Groq → parse text
+rag_chain = (
+    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+
+# Note: with LCEL you pass the QUESTION STRING directly (not {"query": ...})
+print(rag_chain.invoke("How many holidays do I get?"))
+```
+
+**Want to see which chunks were used?** Retrieve separately:
+
+```python
+sources = retriever.invoke("How many holidays do I get?")
+print("Sources used:")
+for d in sources:
+    print(" -", d.page_content)
 ```
 
 ### 3.2 — Hand-rolled vs LangChain: the honest comparison
 
-| Aspect | From scratch (S1) | LangChain (S3) |
-|--------|-------------------|----------------|
-| Lines of code | ~30 | ~10 |
-| You see every step | ✅ fully | ❌ hidden in the chain |
+| Aspect | From scratch (S1) | LangChain LCEL (S3) |
+|--------|-------------------|---------------------|
+| Lines of code | ~30 | ~15 |
+| You see every step | ✅ fully | ✅ each `|` stage is visible |
 | Swap vector DB / LLM | manual rewrite | change one line |
-| Debugging a weird answer | easy (it's your code) | harder (peek inside the chain) |
+| Debugging a weird answer | easy (it's your code) | medium (inspect each stage) |
 | Best for | learning, full control | shipping fast, standard pipelines |
 
-> 🎓 **When to use which:** hand-roll (or use ChromaDB directly) when you need control or are learning; reach for LangChain when you want a standard pipeline fast and value swappable parts over transparency.
+> 🎓 **When to use which:** hand-roll (or use ChromaDB directly) when you need control or are learning; reach for LangChain when you want a standard, swappable pipeline fast. LCEL keeps things transparent because each `|` stage is a piece you can print and test on its own.
 
 > ✅ **Session 3 done — and you've now built RAG three times.** You can explain exactly what each abstraction hides.
 
@@ -342,16 +370,39 @@ print(f"Split into {len(chunks)} chunks")
 
 ### A.3 — Build the RAG chain over the PDF
 
+We'll define one small reusable helper that turns any retriever into a Groq-powered RAG chain (LCEL style), then use it for the PDF.
+
 ```python
-pdf_store = Chroma.from_documents(chunks, embedding=embeddings)
-pdf_qa = RetrievalQA.from_chain_type(
-    llm=llm, retriever=pdf_store.as_retriever(search_kwargs={"k": 4}),
-    return_source_documents=True,
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+
+_prompt = ChatPromptTemplate.from_template(
+    '''Answer using ONLY the context. If it's not there, say "I don't have that information."
+Context:
+{context}
+Question: {question}'''
 )
 
-ans = pdf_qa.invoke({"query": "What is the attendance requirement?"})  # ask your PDF!
-print(ans["result"])
-print("\nFrom page(s):", [d.metadata.get("page") for d in ans["source_documents"]])
+def make_rag_chain(retriever, model="llama-3.3-70b-versatile"):
+    """Turn any retriever into a Groq-powered RAG chain (call with a question string)."""
+    fmt = lambda docs: "\n".join(d.page_content for d in docs)
+    return (
+        {"context": retriever | fmt, "question": RunnablePassthrough()}
+        | _prompt
+        | ChatGroq(model=model, temperature=0)
+        | StrOutputParser()
+    )
+
+pdf_store = Chroma.from_documents(chunks, embedding=embeddings)
+pdf_retriever = pdf_store.as_retriever(search_kwargs={"k": 4})
+pdf_chain = make_rag_chain(pdf_retriever)
+
+print(pdf_chain.invoke("What is the attendance requirement?"))   # ask your PDF!
+
+# See which page(s) the answer came from:
+hits = pdf_retriever.invoke("What is the attendance requirement?")
+print("\nFrom page(s):", [d.metadata.get("page") for d in hits])
 ```
 
 > 🏢 This is the exact skeleton behind "chat with your document" products. Swap in any PDF and ask away.
@@ -403,16 +454,18 @@ questions = [
 
 ```python
 def build_qa(chunks_list):
+    """Build a RAG chain over a list of text chunks (reuses make_rag_chain from Example A)."""
     store = Chroma.from_texts(chunks_list, embedding=embeddings)
-    return RetrievalQA.from_chain_type(
-        llm=llm, retriever=store.as_retriever(search_kwargs={"k": 3}))
+    return make_rag_chain(store.as_retriever(search_kwargs={"k": 3}))
 
-def evaluate(qa_chain, name):
+def evaluate(rag_chain, name):
     print(f"\n===== {name} =====")
     for q in questions:
-        ans = qa_chain.invoke({"query": q})["result"]
+        ans = rag_chain.invoke(q)          # LCEL: pass the question string directly
         print(f"Q: {q}\nA: {ans}\n")
 ```
+
+> 💡 If you're running this section on its own, make sure you've executed **Example A.3** first (it defines `make_rag_chain`), or paste that helper above.
 
 ### B.4 — Strategy 1 & 2: fixed-size (256 vs 512 "tokens")
 
@@ -493,7 +546,7 @@ for c in no_overlap: print(" •", repr(c))
 
 qa_bad = build_qa(no_overlap)
 print("\nQ: Who leads the kickoff and when is it?")
-print("A:", qa_bad.invoke({"query": "Who leads the kickoff and when is it?"})["result"])
+print("A:", qa_bad.invoke("Who leads the kickoff and when is it?"))
 # ❌ Likely incomplete — "who" and "when" are in different chunks, only one is retrieved
 ```
 
@@ -516,7 +569,7 @@ for c in with_overlap: print(" •", repr(c))
 
 qa_good = build_qa(with_overlap)
 print("\nQ: Who leads the kickoff and when is it?")
-print("A:", qa_good.invoke({"query": "Who leads the kickoff and when is it?"})["result"])
+print("A:", qa_good.invoke("Who leads the kickoff and when is it?"))
 # ✅ Now a chunk contains both the leader AND the time → complete answer
 ```
 
@@ -538,7 +591,7 @@ mindmap
       Metadata filtering
       Persistence
     Session 3 · LangChain
-      RetrievalQA in ~10 lines
+      LCEL chain (~15 lines)
       Swappable parts
       When to use vs skip
     Examples
@@ -553,7 +606,7 @@ mindmap
 | Cosine similarity | Compares direction of vectors; 1 = same meaning |
 | ChromaDB | A fast, persistent index with metadata filtering |
 | Metadata filtering | Restrict retrieval to a subset (department, doc, topic) |
-| LangChain RetrievalQA | The whole pipeline in one object — fast, but less transparent |
+| LangChain LCEL | The whole pipeline as composable `|` stages — fast and swappable |
 | Ask-a-PDF | Load → split → embed → retrieve → answer; the real-world skeleton |
 | Chunk size (256/512/semantic) | No universal best — bake off on your own questions |
 | Overlap | Shared boundary text; fixes answers split across chunks |
@@ -582,15 +635,22 @@ col = chromadb.Client().get_or_create_collection("x")
 col.add(documents=chunks, ids=[f"d{i}" for i in range(len(chunks))])
 col.query(query_texts=[q], n_results=2, where={"topic": "leave"})  # + metadata filter
 
-# ── LANGCHAIN: whole pipeline ──
+# ── LANGCHAIN: whole pipeline (LCEL, v1-safe) ──
 from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.chains import RetrievalQA
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+
 store = Chroma.from_texts(chunks, HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2"))
-qa = RetrievalQA.from_chain_type(llm=ChatGroq(model=MODEL, temperature=0),
-                                 retriever=store.as_retriever(search_kwargs={"k": 2}))
-qa.invoke({"query": q})["result"]
+retriever = store.as_retriever(search_kwargs={"k": 2})
+prompt = ChatPromptTemplate.from_template(
+    "Answer from context only.\nContext:\n{context}\nQuestion: {question}")
+chain = ({"context": retriever | (lambda ds: "\n".join(d.page_content for d in ds)),
+          "question": RunnablePassthrough()}
+         | prompt | ChatGroq(model=MODEL, temperature=0) | StrOutputParser())
+chain.invoke(q)   # pass the question STRING (not {"query": ...})
 
 # ── CHUNKING ──
 from langchain.text_splitter import RecursiveCharacterTextSplitter

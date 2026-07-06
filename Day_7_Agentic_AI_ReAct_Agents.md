@@ -545,26 +545,20 @@ llm = ChatGroq(
 Modern LangChain uses a "tool-calling" agent that's cleaner than the text-parsing we did by hand.
 
 ```python
-from langchain.agents import create_tool_calling_agent, AgentExecutor
-from langchain_core.prompts import ChatPromptTemplate
+from langchain.agents import create_agent
+from langchain.agents.middleware import ModelCallLimitMiddleware
 
 tools = [calculator, lookup_fact]
 
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful assistant. Use the tools available to you "
-               "whenever they help answer the question accurately."),
-    ("human", "{input}"),
-    ("placeholder", "{agent_scratchpad}"),   # where the loop's trace lives
-])
-
-agent = create_tool_calling_agent(llm, tools, prompt)
-
-executor = AgentExecutor(
-    agent=agent,
+agent = create_agent(
+    model=llm,
     tools=tools,
-    verbose=True,          # 👈 prints the full trace — great for learning
-    max_iterations=6,      # safety cap (Session 3!)
+    system_prompt="You are a helpful assistant. Use the tools available to you...",
+    middleware=[ModelCallLimitMiddleware(thread_limit=6)],
 )
+
+result = agent.invoke({"messages": [{"role": "user", "content": "What is the population density of the three largest cities in Punjab? "}]})
+print(result["messages"][-1].content)
 ```
 
 **What each piece is:**

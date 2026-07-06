@@ -557,8 +557,6 @@ agent = create_agent(
     middleware=[ModelCallLimitMiddleware(thread_limit=6)],
 )
 
-result = agent.invoke({"messages": [{"role": "user", "content": "What is the population density of the three largest cities in Punjab? "}]})
-print(result["messages"][-1].content)
 ```
 
 **What each piece is:**
@@ -571,11 +569,8 @@ print(result["messages"][-1].content)
 ### 6.6 — Step 4: Run it 🚀
 
 ```python
-result = executor.invoke({
-    "input": "What is the population density of the three largest cities in Punjab? "
-             "(You'll need to find each city's population.)"
-})
-print("\nFINAL ANSWER:\n", result["output"])
+result = agent.invoke({"messages": [{"role": "user", "content": "What is the population density of the three largest cities in Punjab? "}]})
+print(result["messages"][-1].content)
 ```
 
 Watch the `verbose` output: the agent will look up each city, then reason about the answer — the **same ReAct loop from Session 1**, now handled by the framework.

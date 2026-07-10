@@ -176,7 +176,8 @@ flowchart LR
 The fastest way to start — **one command, nothing to install permanently.** You only need [Node.js](https://nodejs.org) (v18 or newer) on your machine.
 
 ```bash
-npx n8n
+npm install n8n -g
+n8n
 ```
 
 That's it. 🎉 `npx` downloads n8n, runs it, and prints something like:

@@ -171,20 +171,65 @@ flowchart LR
     style N2 fill:#6366F1,color:#fff
 ```
 
-### 5.2 · Getting n8n running (pick one)
+### 5.2 · Getting n8n running with `npx` ⭐
 
-- ☁️ **Easiest — n8n Cloud:** sign up at [n8n.io](https://n8n.io), get a workspace instantly, public webhook URLs included.
-- 🐳 **Self-host with Docker** (full control, data stays yours):
+The fastest way to start — **one command, nothing to install permanently.** You only need [Node.js](https://nodejs.org) (v18 or newer) on your machine.
 
 ```bash
-docker run -it --rm -p 5678:5678 \
-  -v ~/.n8n:/home/node/.n8n \
-  docker.n8n.io/n8nio/n8n
+npx n8n
 ```
 
-Then open **http://localhost:5678** in your browser. 🎉
+That's it. 🎉 `npx` downloads n8n, runs it, and prints something like:
 
-> 💡 **Localhost + webhooks:** external services can't reach `localhost`. For testing, run n8n in **tunnel mode** (`n8n start --tunnel`) or use n8n Cloud, which gives public URLs out of the box.
+```text
+Editor is now accessible via:
+http://localhost:5678/
+```
+
+Open **http://localhost:5678** in your browser and you'll see the n8n canvas. 🖼️
+
+**What just happened?**
+
+| Piece | 🔍 What it does |
+|-------|-----------------|
+| `npx` | Node's "run a package without installing it" tool |
+| `n8n` | The package it fetches and runs |
+| First run | Downloads n8n (takes a minute), then starts the editor |
+| Later runs | Much faster — it's cached |
+
+> 💡 **Your workflows are safe.** Even though `npx` doesn't "install" n8n, your workflows and credentials are saved to a folder called `~/.n8n` in your home directory. Stop the server with **Ctrl+C**, run `npx n8n` again tomorrow, and everything is still there. ✅
+
+**Useful variations:**
+
+```bash
+npx n8n                  # ▶️ just start it
+npx n8n@latest           # ⬆️ force the newest version
+npx n8n start --tunnel   # 🌍 start with a public webhook URL (see below)
+```
+
+> ⚠️ **Keep the terminal open.** n8n runs *in* that terminal window. Close it (or press Ctrl+C) and the server stops. Reopen with `npx n8n`.
+
+#### 🌍 The localhost problem (and the `--tunnel` fix)
+
+Your n8n is at `http://localhost:5678`. That address means *"this computer"* — so an outside service (Slack, Stripe, a webhook from a friend) **cannot reach it**. 🚫
+
+For **Session 2's webhook**, you'll test with `curl` from your own machine, so plain `npx n8n` works fine. But the moment you want an *external* service to call your workflow, run:
+
+```bash
+npx n8n start --tunnel
+```
+
+n8n then prints a **public URL** that forwards to your laptop. Use that for testing only — never production. 🔒
+
+#### Other ways to run n8n (for reference)
+
+- ☁️ **n8n Cloud** — sign up at [n8n.io](https://n8n.io). No install, public webhook URLs included. Best for non-technical colleagues.
+- 🐳 **Docker** — for long-running/self-hosted setups:
+  ```bash
+  docker run -it --rm -p 5678:5678 -v ~/.n8n:/home/node/.n8n docker.n8n.io/n8nio/n8n
+  ```
+
+> 🎯 **For this workshop, `npx n8n` is all you need.** It's the shortest path from zero to a working canvas.
 
 ### 5.3 · The n8n mental model vs LangGraph
 
@@ -310,9 +355,12 @@ Same task, two ways. Neither is "better" — they fit different people and probl
 |-----------|----------|--------|
 | `get_state` empty after restart | Different DB file or `thread_id` | Reconnect the **same** `.sqlite` file + same `thread_id` |
 | `database is locked` (SQLite) | Concurrent access | Add `check_same_thread=False`; for real load use Postgres |
+| `npx n8n` → "command not found" | Node.js not installed | Install Node.js v18+ from [nodejs.org](https://nodejs.org) |
+| n8n stops when I close the terminal | It runs *in* that terminal | Keep it open; restart with `npx n8n` |
 | n8n webhook "not registered" | Workflow in test mode / not published | Click **Listen for test event**, or publish for the Production URL |
 | Webhook works in editor, not live | Using the Test URL in production | Switch to the **Production URL** and publish |
-| External service can't reach localhost | n8n on `localhost` | Run `--tunnel` mode or use n8n Cloud |
+| External service can't reach localhost | n8n on `localhost` | Run `npx n8n start --tunnel` or use n8n Cloud |
+| Lost my workflows after restart | Looking in the wrong place | They're in `~/.n8n` — they persist across `npx` runs |
 | Expression returns blank | Wrong path into prior node's JSON | Check the node's output panel; fix `{{ $json.… }}` path |
 | `model decommissioned` | Groq deprecated the model | Switch to `openai/gpt-oss-120b` |
 
@@ -345,6 +393,13 @@ config = {"configurable": {"thread_id": "session-1"}}
 graph.invoke(inputs, config)                 # runs + auto-saves
 graph.get_state(config)                       # 🔎 current state
 list(graph.get_state_history(config))         # 🐾 full trace
+```
+
+```bash
+# 🧰 N8N: START IT
+npx n8n                  # → open http://localhost:5678
+npx n8n start --tunnel   # → public URL for external webhooks
+# workflows persist in ~/.n8n  ·  stop with Ctrl+C
 ```
 
 ```text
